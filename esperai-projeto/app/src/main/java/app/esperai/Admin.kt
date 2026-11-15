@@ -66,7 +66,7 @@ fun AdminHome(nav: NavController) {
 
 @Composable
 fun AdminLines(nav: NavController) {
-    val dao = remember { Db.get(LocalContext.current).dao() }
+    val dao = Db.get(LocalContext.current).dao()
     val lines by remember { dao.lines() }.collectAsState(emptyList())
     Screen("Linhas", nav, fab = {
         FloatingActionButton({ nav.navigate("admin/line/0") }, containerColor = Teal, contentColor = Color.White) { Icon(Icons.Filled.Add, "Nova linha") }
@@ -84,7 +84,7 @@ fun AdminLines(nav: NavController) {
 
 @Composable
 fun LineForm(nav: NavController, id: Long) {
-    val dao = remember { Db.get(LocalContext.current).dao() }
+    val dao = Db.get(LocalContext.current).dao()
     val scope = rememberCoroutineScope()
     var number by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
@@ -128,7 +128,7 @@ fun LineForm(nav: NavController, id: Long) {
 
 @Composable
 fun AdminStops(nav: NavController) {
-    val dao = remember { Db.get(LocalContext.current).dao() }
+    val dao = Db.get(LocalContext.current).dao()
     val stops by remember { dao.stops() }.collectAsState(emptyList())
     Screen("Paradas", nav, fab = {
         FloatingActionButton({ nav.navigate("admin/stop/0") }, containerColor = Teal, contentColor = Color.White) { Icon(Icons.Filled.Add, "Nova parada") }
@@ -198,7 +198,7 @@ fun StopForm(nav: NavController, id: Long) {
 
 @Composable
 fun OrderScreen(nav: NavController, lineId: Long) {
-    val dao = remember { Db.get(LocalContext.current).dao() }
+    val dao = Db.get(LocalContext.current).dao()
     val scope = rememberCoroutineScope()
     val all by remember { dao.stops() }.collectAsState(emptyList())
     val ids = remember { mutableStateListOf<Long>() }
@@ -241,7 +241,7 @@ class Draft(val id: Long, val times: SnapshotStateMap<Long, String>)
 
 @Composable
 fun TimesScreen(nav: NavController, lineId: Long) {
-    val dao = remember { Db.get(LocalContext.current).dao() }
+    val dao = Db.get(LocalContext.current).dao()
     val scope = rememberCoroutineScope()
     val stops by remember(lineId) { dao.stopsOfLine(lineId) }.collectAsState(emptyList())
     val trips by remember(lineId) { dao.tripsOfLine(lineId) }.collectAsState(emptyList())
