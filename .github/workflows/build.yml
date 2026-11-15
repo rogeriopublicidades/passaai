@@ -23,7 +23,7 @@ jobs:
         env:
           KEYSTORE_FILE: ${{ runner.temp }}/esperai.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          DATA_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/dados.json
+          DATA_URL: https://esperaai.netlify.app/json/dados.json
         run: gradle assembleAdminRelease assembleUsuarioRelease --no-daemon
       - uses: actions/upload-artifact@v4
         with:
