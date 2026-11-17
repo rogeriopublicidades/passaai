@@ -33,6 +33,12 @@ fun App() {
         composable("lines") { LinesScreen(nav) }
         withId("line/{id}") { LineScreen(nav, it) }
         withId("stop/{id}") { StopScreen(nav, it) }
+        composable(
+            "trip/{lineId}/{tripId}",
+            arguments = listOf(navArgument("lineId") { type = NavType.LongType }, navArgument("tripId") { type = NavType.LongType })
+        ) {
+            TripScreen(nav, it.arguments!!.getLong("lineId"), it.arguments!!.getLong("tripId"))
+        }
         if (BuildConfig.ADMIN) {
             composable("admin") { AdminHome(nav) }
             composable("admin/lines") { AdminLines(nav) }

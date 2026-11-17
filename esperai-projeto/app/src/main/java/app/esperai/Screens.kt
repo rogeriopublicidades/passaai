@@ -95,6 +95,21 @@ fun LinesScreen(nav: NavController) {
 }
 
 @Composable
+private fun TripRow(nav: NavController, lineId: Long, tv: TripView, highlight: Boolean) {
+    CardRow({ nav.navigate("trip/$lineId/${tv.trip.id}") }, highlight = highlight) {
+        Text("${tv.dep ?: "--:--"} → ${tv.arr ?: "--:--"}", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text(duration(tv.dep, tv.arr), color = Muted)
+        if (highlight) {
+            Text(
+                "Próxima", color = Color(0xFF6B4200), fontWeight = FontWeight.Bold, fontSize = 12.sp,
+                modifier = Modifier.background(Color(0xFFFFF1CC), RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 3.dp)
+            )
+        }
+        Icon(Icons.Filled.KeyboardArrowRight, null, tint = Muted)
+    }
+}
+
+@Composable
 fun LineScreen(nav: NavController, id: Long) {
     val ctx = LocalContext.current
     val dao = remember { Db.get(ctx).dao() }
@@ -104,11 +119,9 @@ fun LineScreen(nav: NavController, id: Long) {
     val trips by remember(id) { dao.tripsOfLine(id) }.collectAsState(emptyList())
     val times by remember(id) { dao.timesOfLine(id) }.collectAsState(emptyList())
     var day by remember { mutableIntStateOf(todayType()) }
-    var sel by remember { mutableStateOf<Long?>(null) }
     val views = tripViews(trips, times, stops, day)
     val now = nowHm()
     val next = if (day == todayType()) views.firstOrNull { it.dep != null && it.dep >= now } else null
-    val shownTrip = views.firstOrNull { it.trip.id == sel } ?: next ?: views.firstOrNull()
 
     Screen("Linha ${line?.number ?: ""}", nav) {
         line?.let { l ->
@@ -121,27 +134,48 @@ fun LineScreen(nav: NavController, id: Long) {
             }
             if (l.notes.isNotBlank()) Text(l.notes, color = Muted)
         }
-        DayTabs(day) { day = it; sel = null }
-        Section("Viagens")
+        DayTabs(day) { day = it }
+        if (next != null) {
+            Section("Próxima viagem")
+            TripRow(nav, id, next, true)
+        }
+        Section("Todas as viagens · toque para ver as paradas")
         if (views.isEmpty()) Text("Sem viagens cadastradas para este dia.", color = Muted)
-        views.forEach { tv ->
-            CardRow({ sel = tv.trip.id }, highlight = tv.trip.id == shownTrip?.trip?.id) {
-                Text("${tv.dep ?: "--:--"} → ${tv.arr ?: "--:--"}", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                Text(duration(tv.dep, tv.arr), color = Muted)
-                if (tv.trip.id == next?.trip?.id) {
-                    Text(
-                        "Próxima", color = Color(0xFF6B4200), fontWeight = FontWeight.Bold, fontSize = 12.sp,
-                        modifier = Modifier.background(Color(0xFFFFF1CC), RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
-                }
+        views.forEach { tv -> TripRow(nav, id, tv, tv.trip.id == next?.trip?.id) }
+    }
+}
+
+@Composable
+fun TripScreen(nav: NavController, lineId: Long, tripId: Long) {
+    val ctx = LocalContext.current
+    val dao = remember { Db.get(ctx).dao() }
+    var line by remember { mutableStateOf<Line?>(null) }
+    LaunchedEffect(lineId) { line = dao.line(lineId) }
+    val stops by remember(lineId) { dao.stopsOfLine(lineId) }.collectAsState(emptyList())
+    val trips by remember(lineId) { dao.tripsOfLine(lineId) }.collectAsState(emptyList())
+    val times by remember(lineId) { dao.timesOfLine(lineId) }.collectAsState(emptyList())
+    val trip = trips.firstOrNull { it.id == tripId }
+    val tv = trip?.let { t -> tripViews(trips, times, stops, t.dayType).firstOrNull { it.trip.id == t.id } }
+
+    Screen("Linha ${line?.number ?: ""}", nav) {
+        line?.let { l ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                LineBadge(l.number)
+                Text("${l.origin} → ${l.destination}", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             }
         }
-        Section("Paradas · toque para ver no mapa")
-        stops.forEach { s ->
-            CardRow({ nav.navigate("stop/${s.id}") }) {
-                Box(Modifier.size(12.dp).background(Teal, CircleShape))
-                Text(s.name, Modifier.weight(1f))
-                Text(shownTrip?.times?.get(s.id) ?: "", fontWeight = FontWeight.Bold)
+        if (tv != null) {
+            Text("${tv.dep ?: "--:--"} → ${tv.arr ?: "--:--"}", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Text("${DAY_LABELS[tv.trip.dayType]} · duração ${duration(tv.dep, tv.arr)}", color = Muted)
+            Section("Paradas e horários previstos")
+            Text("Os horários nas paradas são previstos e podem variar com o trânsito.", fontSize = 13.sp, color = Muted)
+            stops.forEach { s ->
+                val t = tv.times[s.id]
+                CardRow({ nav.navigate("stop/${s.id}") }) {
+                    Box(Modifier.size(12.dp).background(Teal, CircleShape))
+                    Text(s.name, Modifier.weight(1f))
+                    Text(t ?: "--:--", fontWeight = FontWeight.Bold, color = if (t == null) Muted else Color.Unspecified)
+                }
             }
         }
     }
