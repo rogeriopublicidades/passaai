@@ -37,7 +37,7 @@ fun AdminHome(nav: NavController) {
     var info by remember { mutableStateOf<String?>(null) }
     val exp = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) scope.launch {
-            val t = DataSync.exportData(db)
+            val t = DataSync.exportData(db, ctx)
             ctx.contentResolver.openOutputStream(uri)?.use { it.write(t.toByteArray()) }
             info = "Arquivo salvo. Envie-o ao site para atualizar os usuários."
         }
@@ -46,7 +46,7 @@ fun AdminHome(nav: NavController) {
         if (uri != null) scope.launch {
             info = try {
                 val t = ctx.contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() }
-                DataSync.importData(db, t)
+                DataSync.importData(db, t, ctx)
                 "Dados importados."
             } catch (e: Exception) {
                 "Arquivo inválido."

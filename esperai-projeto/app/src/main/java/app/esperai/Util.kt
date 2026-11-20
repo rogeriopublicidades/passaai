@@ -89,3 +89,28 @@ fun openMaps(ctx: Context, s: Stop, walk: Boolean) {
 }
 
 fun JSONArray.objs(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
+
+object Holidays {
+    data class H(val date: String, val name: String, val dayType: Int)
+
+    private fun prefs(c: Context) = c.getSharedPreferences("esperai", Context.MODE_PRIVATE)
+
+    fun save(c: Context, arr: JSONArray) {
+        prefs(c).edit().putString("holidays", arr.toString()).apply()
+    }
+
+    fun load(c: Context): List<H> = try {
+        JSONArray(prefs(c).getString("holidays", "[]")).objs().map {
+            H(it.getString("date"), it.optString("name", "Feriado"), it.getInt("dayType").coerceIn(0, 2))
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    fun today(c: Context): H? {
+        val d = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        return load(c).firstOrNull { it.date == d }
+    }
+}
+
+fun dayTypeNow(ctx: Context): Int = Holidays.today(ctx)?.dayType ?: todayType()

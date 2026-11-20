@@ -269,3 +269,18 @@ fun Field(label: String, v: String, hint: String? = null, kb: KeyboardType = Key
         singleLine = true
     )
 }
+
+@Composable
+fun HolidayBanner(h: Holidays.H) {
+    Row(
+        Modifier.fillMaxWidth().background(Color(0xFFFAEEDA), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(Icons.Filled.DateRange, null, tint = Color(0xFF854F0B))
+        Text(
+            "Hoje é feriado: ${h.name}. Horários de ${DAY_LABELS[h.dayType.coerceIn(0, 2)]}.",
+            color = Color(0xFF633806), fontSize = 14.sp, fontWeight = FontWeight.Medium
+        )
+    }
+}

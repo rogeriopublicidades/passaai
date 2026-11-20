@@ -13,7 +13,7 @@ object DataSync {
 
     private fun prefs(c: Context) = c.getSharedPreferences("esperai", Context.MODE_PRIVATE)
 
-    suspend fun exportData(db: Db): String {
+    suspend fun exportData(db: Db, ctx: Context): String {
         val d = db.dao()
         val o = JSONObject()
         o.put("dataVersion", System.currentTimeMillis() / 1000)
@@ -33,10 +33,13 @@ object DataSync {
         o.put("times", JSONArray().also { a ->
             d.allTimes().forEach { a.put(JSONObject().put("tripId", it.tripId).put("stopId", it.stopId).put("time", it.time)) }
         })
+        o.put("holidays", JSONArray().also { a ->
+            Holidays.load(ctx).forEach { a.put(JSONObject().put("date", it.date).put("name", it.name).put("dayType", it.dayType)) }
+        })
         return o.toString(1)
     }
 
-    suspend fun importData(db: Db, text: String) {
+    suspend fun importData(db: Db, text: String, ctx: Context) {
         val o = JSONObject(text)
         val lines = o.getJSONArray("lines").objs().map {
             Line(it.getLong("id"), it.getString("number"), it.getString("name"), it.getString("origin"), it.getString("destination"), it.optString("notes", ""))
@@ -52,6 +55,7 @@ object DataSync {
         val trips = o.getJSONArray("trips").objs().map { Trip(it.getLong("id"), it.getLong("lineId"), it.getInt("dayType")) }
         val times = o.getJSONArray("times").objs().map { StopTime(it.getLong("tripId"), it.getLong("stopId"), it.getString("time")) }
         db.dao().replaceAll(lines, stops, ls, trips, times)
+        if (o.has("holidays")) Holidays.save(ctx, o.getJSONArray("holidays"))
     }
 
     suspend fun check(ctx: Context): Result = withContext(Dispatchers.IO) {
@@ -66,7 +70,7 @@ object DataSync {
             val v = o.getLong("dataVersion")
             var updated = false
             if (v > prefs(ctx).getLong("dataVersion", 0)) {
-                importData(Db.get(ctx), text)
+                importData(Db.get(ctx), text, ctx)
                 prefs(ctx).edit().putLong("dataVersion", v).apply()
                 updated = true
             }

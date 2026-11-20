@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -51,8 +52,18 @@ fun LinesScreen(nav: NavController) {
     val ctx = LocalContext.current
     val dao = remember { Db.get(ctx).dao() }
     val lines by remember { dao.lines() }.collectAsState(emptyList())
-    var q by remember { mutableStateOf("") }
+    val deps by remember { dao.departures() }.collectAsState(emptyList())
     var info by remember { mutableStateOf<String?>(null) }
+    val dayNow = remember(info) { dayTypeNow(ctx) }
+    val holiday = remember(info) { Holidays.today(ctx) }
+    var nowStr by remember { mutableStateOf(nowHm()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(15000)
+            nowStr = nowHm()
+        }
+    }
+    var q by remember { mutableStateOf("") }
     var appUrl by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -96,6 +107,7 @@ fun LinesScreen(nav: NavController) {
                 }
             )
         }
+        holiday?.let { HolidayBanner(it) }
         info?.let { Text(it, color = Teal, fontWeight = FontWeight.SemiBold) }
         appUrl?.let { u -> PillButton("Nova versão do app disponível", true) { openUrl(ctx, u) } }
 
@@ -111,16 +123,46 @@ fun LinesScreen(nav: NavController) {
         }
         if (shown.isEmpty()) Text("Nenhuma linha encontrada.", color = Muted)
         shown.forEach { l ->
+            val todays = deps.filter { it.lineId == l.id && it.dayType == dayNow }
+            val next = todays.filter { it.time >= nowStr }.minOfOrNull { it.time }
+            val diff = if (next != null) (toMin(next) ?: 0) - (toMin(nowStr) ?: 0) else 0
+            val tone = when {
+                next == null -> Muted
+                diff <= 10 -> Color(0xFF854F0B)
+                else -> Color(0xFF085041)
+            }
             CardRow({ nav.navigate("line/${l.id}") }) {
-                BusBadge(l.number)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("${l.origin} → ${l.destination}", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Ink, lineHeight = 21.sp)
-                    if (l.name.isNotBlank()) InfoLine(rememberVectorPainter(Icons.Filled.LocationOn), l.name)
-                    if (l.notes.isNotBlank()) InfoLine(painterResource(R.drawable.ic_route), l.notes)
+                BusBadge(l.number, 64.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(l.name.ifBlank { "${l.origin} → ${l.destination}" }, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = Ink, lineHeight = 20.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(painterResource(R.drawable.ic_clock_line), null, tint = tone, modifier = Modifier.size(18.dp))
+                        Text(
+                            when {
+                                todays.isEmpty() -> "Sem horários hoje"
+                                next == null -> "Sem mais saídas hoje"
+                                else -> countdown(diff)
+                            },
+                            color = tone,
+                            fontSize = if (next != null) 22.sp else 16.sp,
+                            fontWeight = if (next != null) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                    if (next != null) Text("próxima saída às $next", fontSize = 12.sp, color = Muted)
                 }
                 ChevronCircle()
             }
         }
+    }
+}
+
+private fun countdown(diff: Int): String = when {
+    diff <= 0 -> "Saindo agora"
+    diff < 60 -> "Sai em $diff min"
+    else -> {
+        val h = diff / 60
+        val m = diff % 60
+        if (m == 0) "Sai em ${h}h" else "Sai em ${h}h ${m.toString().padStart(2, '0')}"
     }
 }
 
@@ -133,12 +175,15 @@ fun LineScreen(nav: NavController, id: Long) {
     val stops by remember(id) { dao.stopsOfLine(id) }.collectAsState(emptyList())
     val trips by remember(id) { dao.tripsOfLine(id) }.collectAsState(emptyList())
     val times by remember(id) { dao.timesOfLine(id) }.collectAsState(emptyList())
-    var day by remember { mutableIntStateOf(todayType()) }
+    val dayNow = remember { dayTypeNow(ctx) }
+    val holiday = remember { Holidays.today(ctx) }
+    var day by remember { mutableIntStateOf(dayNow) }
     val views = tripViews(trips, times, stops, day)
     val now = nowHm()
-    val next = if (day == todayType()) views.firstOrNull { it.dep != null && it.dep >= now } else null
+    val next = if (day == dayNow) views.firstOrNull { it.dep != null && it.dep >= now } else null
 
     Screen("Linha ${line?.number ?: ""}", nav) {
+        holiday?.let { HolidayBanner(it) }
         line?.let { l ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 BusBadge(l.number, 96.dp)
@@ -219,7 +264,7 @@ fun StopScreen(nav: NavController, id: Long) {
     val stop by remember(id) { dao.stopFlow(id) }.collectAsState(null)
     val lines by remember { dao.lines() }.collectAsState(emptyList())
     val tl by remember(id) { dao.timesAtStop(id) }.collectAsState(emptyList())
-    val today = todayType()
+    val today = dayTypeNow(ctx)
 
     Screen("Parada", nav) {
         stop?.let { s ->
